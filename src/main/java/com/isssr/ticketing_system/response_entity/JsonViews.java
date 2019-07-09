@@ -76,4 +76,14 @@ public class JsonViews {
     public static class SecretUser extends DetailedUser {
     }
     */
+
+    // CHAT VIEWS
+    public static class MessageInfo{}       // per specificare gli attributi di messaggio da ritornare
+
+    public static class MessagesOnly extends MessageInfo{} // comprende tutti gli attribuiti dei messaggi nella chat
+
+    public static class ChatMessagesLoadInfo extends MessagesOnly{} // info della chat da ritornare al caricamento dei messaggi
+
+    public static class MembersOnly {
+    }
 }

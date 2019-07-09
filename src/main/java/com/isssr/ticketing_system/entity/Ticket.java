@@ -139,6 +139,10 @@ public class Ticket extends SoftDeletableEntity implements Identifiable {
     //@JsonIgnoreProperties
     private Collection<TicketEvent> events;
 
+    @JsonView(JsonViews.Basic.class)
+    @NonNull
+    private Boolean slackable;
+
     @JsonView(JsonViews.DetailedTicket.class)
     @OneToMany(fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     //@OneToMany

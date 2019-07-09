@@ -8,16 +8,14 @@ import com.isssr.ticketing_system.dto.ScrumAssignmentDto;
 import com.isssr.ticketing_system.dto.ScrumProductWorkflowDto;
 import com.isssr.ticketing_system.dto.ScrumTeamDto;
 import com.isssr.ticketing_system.dto.TargetDto;
-import com.isssr.ticketing_system.entity.ScrumTeam;
-import com.isssr.ticketing_system.entity.Sprint;
-import com.isssr.ticketing_system.entity.User;
+import com.isssr.ticketing_system.entity.*;
+import com.isssr.ticketing_system.enumeration.ChatType;
 import com.isssr.ticketing_system.enumeration.TargetState;
 import com.isssr.ticketing_system.exception.EntityNotFoundException;
 import com.isssr.ticketing_system.exception.NotFoundEntityException;
 import com.isssr.ticketing_system.logger.aspect.LogOperation;
 import com.isssr.ticketing_system.entity.SoftDelete.SoftDelete;
 import com.isssr.ticketing_system.entity.SoftDelete.SoftDeleteKind;
-import com.isssr.ticketing_system.entity.Target;
 import com.isssr.ticketing_system.dao.TargetDao;
 import org.modelmapper.ModelMapper;
 import org.modelmapper.PropertyMap;
@@ -44,6 +42,9 @@ public class TargetController {
     private TargetDao targetDao;
     private TargetDefaultPermission defaultPermissionTable;
     private StateMachineController stateMachineController;
+    private ChatController chatController;
+    private ChatMemberController chatMemberController;
+    private UserController userController;
     @Autowired
     private ScrumTeamDao scrumTeamDao;
     @Autowired
@@ -54,10 +55,18 @@ public class TargetController {
 
 
     @Autowired
-    public TargetController(TargetDao targetDao, TargetDefaultPermission defaultPermissionTable, StateMachineController stateMachineController) {
+    public TargetController(TargetDao targetDao,
+                            TargetDefaultPermission defaultPermissionTable,
+                            StateMachineController stateMachineController,
+                            ChatController chatController,
+                            ChatMemberController chatMemberController,
+                            UserController userController) {
         this.targetDao = targetDao;
         this.defaultPermissionTable = defaultPermissionTable;
         this.stateMachineController = stateMachineController;
+        this.chatController = chatController;
+        this.chatMemberController = chatMemberController;
+        this.userController = userController;
     }
 
     /**
@@ -70,9 +79,25 @@ public class TargetController {
     @LogOperation(tag = "TARGET_CREATE", inputArgs = {"target"})
     @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_SOFTWARE_PRODUCT_COORDINATOR')")
     public @NotNull Target insertTarget(@NotNull Target target) {
+        Chat chat = null;
+        User user = null;
+
         Target newTarget = this.targetDao.save(target);
         defaultPermissionTable.grantDefaultPermission(newTarget.getId());
         defaultPermissionTable.denyDefaultPermission(newTarget.getId());
+
+        // creazione della chat relativa al prodotto
+        chat = chatController.createChat(ChatType.PRODUCT, newTarget.getId(),false, null);
+
+        // trovo l'admin
+        try {
+            user = userController.findUserByUsername("admin");
+        }catch (EntityNotFoundException e){
+            e.printStackTrace();
+        }
+
+        if (chat != null)
+            chatMemberController.addChatMember(ChatType.PRODUCT, newTarget.getId(), user.getId());
 
         return newTarget;
     }

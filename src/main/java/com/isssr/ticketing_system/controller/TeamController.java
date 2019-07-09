@@ -3,6 +3,7 @@ package com.isssr.ticketing_system.controller;
 import com.isssr.ticketing_system.acl.defaultpermission.TeamDefaultPermission;
 import com.isssr.ticketing_system.dao.UserDao;
 import com.isssr.ticketing_system.entity.User;
+import com.isssr.ticketing_system.enumeration.ChatType;
 import com.isssr.ticketing_system.exception.EntityNotFoundException;
 import com.isssr.ticketing_system.logger.aspect.LogOperation;
 import com.isssr.ticketing_system.entity.SoftDelete.SoftDelete;
@@ -33,17 +34,23 @@ public class TeamController {
     private UserDao userDao;
     private TeamDefaultPermission teamDefaultPermission;
     private UserController userController;
+    private ChatMemberController chatMemberController;
+    private ChatController chatController;
 
     @Autowired
     public TeamController(
             TeamDao teamDao,
             TeamDefaultPermission teamDefaultPermission,
             UserController userController,
+            ChatController chatController,
+            ChatMemberController chatMemberController,
             UserDao userDao
     ) {
         this.teamDao = teamDao;
         this.teamDefaultPermission = teamDefaultPermission;
         this.userController = userController;
+        this.chatController = chatController;
+        this.chatMemberController = chatMemberController;
         this.userDao = userDao;
     }
 
@@ -61,6 +68,9 @@ public class TeamController {
         Team newTeam = this.teamDao.save(team);
         teamDefaultPermission.grantDefaultPermission(team.getId());
         teamDefaultPermission.denyDefaultPermission(team.getId());
+
+        // crazione della chat corrispondente
+        chatController.createChat(ChatType.TEAM, newTeam.getId(), false, null);
 
         return newTeam;
     }
@@ -277,9 +287,25 @@ public class TeamController {
     @Transactional
     @PreAuthorize("hasAuthority('ROLE_TEAM_COORDINATOR')  or hasAuthority('ROLE_ADMIN')")
     @LogOperation(inputArgs = {"team,assistant"}, tag = "team_leader", opName = "setTeamLeader")
-    public Team setTeamLeader(Team team, User assistant) {
+    public Team setTeamLeader(Team team, User assistant, boolean isLeaderToMember, boolean isMemberToLeader) {
+        User prevTeamleader;
+
+        prevTeamleader = team.getTeamLeader();
+
         team.setTeamLeader(assistant);
         teamDao.saveAndFlush(team);
+
+        if (prevTeamleader != null){    // vi era già un team leader associato
+            if(!prevTeamleader.getId().equals(assistant.getId())) {  // se il nuovo team leader è diverso
+                if(!isMemberToLeader)
+                    chatMemberController.addChatMember(ChatType.TEAM, team.getId(), assistant.getId());
+
+                if(!isLeaderToMember) // team leader eliminato dal gruppo
+                    chatMemberController.removeMemberFromTeamChat(team.getId(), prevTeamleader.getId());
+            }
+        }else   // prima assegnazione di teamleader
+            chatMemberController.addChatMember(ChatType.TEAM, team.getId(), assistant.getId());
+
         return team;
     }
 
@@ -293,9 +319,32 @@ public class TeamController {
     @Transactional
     @PreAuthorize("hasAnyAuthority('ROLE_TEAM_COORDINATOR','ROLE_ADMIN')")
     @LogOperation(inputArgs = {"team,assistants"}, tag = "team_assistants", opName = "addAssistantsToTeam")
-    public Team addAssistantsToTeam(Team team, List<User> assistants) {
+    public Team addAssistantsToTeam(Team team, List<User> assistants, Long prevTeamleaderId) {
+        Collection<User> prevMembers;
+        Long teamLeaderId;
+
+        // a questo punto il team leader è quello nuovo
+        prevMembers = teamDao.getTeamMembersByTeamId(team.getId());
+        teamLeaderId = team.getTeamLeader().getId();
+
         team.addUsers(assistants);
         teamDao.saveAndFlush(team);
+
+        // aggiungo i nuovi membri
+        for(User user: assistants) {    // per ogni membro che farà parte del team
+            // se non faceva parte precedentemente e non è il precedente teamleader
+            if(!prevMembers.contains(user) && !user.getId().equals(prevTeamleaderId))
+                // aggiungo un membro
+                chatMemberController.addChatMember(ChatType.TEAM, team.getId(), user.getId());
+        }
+
+        // elimino dalla tabella chat members quelli che non faranno più parte
+        for(User user: prevMembers){
+            // se nuovi componenti non contengono uno vecchio
+            if(!assistants.contains(user) && !user.getId().equals(teamLeaderId))
+                chatMemberController.removeMemberFromTeamChat(team.getId(), user.getId());
+        }
+
         return team;
     }
 

@@ -65,6 +65,9 @@ public class User extends SoftDeletableEntity {
     private Company company;
 
     @JsonView(JsonViews.Basic.class)
+    private String slackAccount;
+
+    @JsonView(JsonViews.Basic.class)
     @NonNull
     @JoinTable(name = "user_role")
     //@JsonSerialize(using = RoleSerializerById.class)

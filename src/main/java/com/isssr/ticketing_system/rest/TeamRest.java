@@ -226,7 +226,7 @@ public class TeamRest {
      * una richiesta di questo tipo viene costruito un team che ha id specificato, team leader specificato
      * e la lista dei team members specificati
      *
-     * @param id id del team da aggiornare
+     * @param ID id del team da aggiornare
      * @param leaderID id del team leader da inserire nel team
      * @param assistantsList lista di id dei team member da inserire nel team
      * @return info del team aggiunto al DB + esito della richiesta HTTP.
@@ -237,13 +237,35 @@ public class TeamRest {
     @LogOperation(inputArgs = {"ID,leaderID,assistantsList"}, returnObject = false, tag = "build_team", opName = "buildTeam")
     public Team buildTeam(@PathVariable Long ID,
                           @PathVariable Long leaderID, @PathVariable Long[] assistantsList) throws EntityNotFoundException {
+        User prevTeamLeader;
+        Long prevTeamLeaderId = -1L;
+        List<Long> nextMemberList;
+        Collection<User> prevMemberCollection;
+        boolean isMemberToLeader = false;
+        boolean isLeaderToMember = false;
 
         Team team = teamController.getTeamById(ID);
         User leader = userController.getUser(leaderID);
-        teamController.setTeamLeader(team, leader);
+
+        prevTeamLeader = team.getTeamLeader();
+        prevMemberCollection = team.getTeamMembers();
+        nextMemberList = Arrays.asList(assistantsList);
+
+        // controllo se il prossimo leader è uno dei membri precedenti
+        for(User member : prevMemberCollection){
+            if(member.getId().equals(leaderID))
+                isMemberToLeader = true;
+        }
+
+        if (prevTeamLeader != null) { // vi è già stato un team leader in precedenza
+            prevTeamLeaderId = prevTeamLeader.getId();
+            isLeaderToMember = nextMemberList.contains(prevTeamLeaderId);
+        }
+
+        teamController.setTeamLeader(team, leader, isLeaderToMember, isMemberToLeader);
 
         List<User> userTypes = userController.findByIdIn(Arrays.asList(assistantsList));
-        teamController.addAssistantsToTeam(team, userTypes);
+        teamController.addAssistantsToTeam(team, userTypes, prevTeamLeaderId);
 
         return team;
 

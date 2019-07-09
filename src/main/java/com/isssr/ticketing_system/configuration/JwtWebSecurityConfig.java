@@ -113,7 +113,7 @@ public class JwtWebSecurityConfig extends WebSecurityConfigurerAdapter {
                         "/**/*.css",
                         "/**/*.js"
                 ).permitAll()
-                .antMatchers("/public/**", "/swagger-ui/**", "/api-docs", "/api-docs/**").permitAll()
+                .antMatchers("/chat-websocket/**", "/public/**", "/swagger-ui/**", "/api-docs", "/api-docs/**").permitAll()
                 //.antMatchers("/api/v1/targets/**").hasRole("ADMIN")
                 .antMatchers(HttpMethod.OPTIONS).permitAll()
                 .anyRequest().authenticated();

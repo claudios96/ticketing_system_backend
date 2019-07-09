@@ -1,21 +1,17 @@
 package com.isssr.ticketing_system.controller;
 
 import FSM.FSM;
-import com.isssr.ticketing_system.acl.defaultpermission.TargetDefaultPermission;
 import com.isssr.ticketing_system.acl.defaultpermission.TicketDefaultPermission;
 import com.isssr.ticketing_system.dao.GanttDayDao;
 import com.isssr.ticketing_system.dao.TeamDao;
+import com.isssr.ticketing_system.dao.TicketDao;
 import com.isssr.ticketing_system.embeddable.KeyGanttDay;
 import com.isssr.ticketing_system.entity.*;
-import com.isssr.ticketing_system.enumeration.TicketDifficulty;
-import com.isssr.ticketing_system.enumeration.TicketPriority;
-import com.isssr.ticketing_system.enumeration.TicketStatus;
-import com.isssr.ticketing_system.enumeration.Visibility;
-import com.isssr.ticketing_system.exception.*;
-import com.isssr.ticketing_system.logger.aspect.LogOperation;
 import com.isssr.ticketing_system.entity.SoftDelete.SoftDelete;
 import com.isssr.ticketing_system.entity.SoftDelete.SoftDeleteKind;
-import com.isssr.ticketing_system.dao.TicketDao;
+import com.isssr.ticketing_system.enumeration.*;
+import com.isssr.ticketing_system.exception.*;
+import com.isssr.ticketing_system.logger.aspect.LogOperation;
 import com.isssr.ticketing_system.response_entity.JsonViews;
 import com.isssr.ticketing_system.utils.ParseDate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,7 +27,6 @@ import java.io.File;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.time.Instant;
 import java.util.*;
 
 
@@ -40,6 +35,9 @@ import java.util.*;
 public class TicketController {
 
     private UserController userController;
+    private ChatController chatController;
+    private ChatMemberController chatMemberController;
+    private ChatMessageController chatMessageController;
     private TeamDao teamDao;
     private TicketDefaultPermission defaultPermissionTable;
     private TicketDao ticketDao;
@@ -55,7 +53,10 @@ public class TicketController {
             TicketDefaultPermission defaultPermissionTable,
             TeamController teamController,
             GanttDayDao ganttDayDao,
-            GanttDayController ganttDayController
+            GanttDayController ganttDayController,
+            ChatController chatController,
+            ChatMemberController chatMemberController,
+            ChatMessageController chatMessageController
     ) {
         this.userController = userController;
         this.teamController = teamController;
@@ -64,12 +65,18 @@ public class TicketController {
         this.defaultPermissionTable = defaultPermissionTable;
         this.ganttDayDao = ganttDayDao;
         this.ganttDayController = ganttDayController;
+        this.chatController = chatController;
+        this.chatMemberController = chatMemberController;
+        this.chatMessageController = chatMessageController;
     }
 
     @Transactional
     @LogOperation(tag = "TICKET_CREATE", inputArgs = {"ticket"}, jsonView = JsonViews.DetailedTicket.class)
     @PreAuthorize("hasAnyAuthority('ROLE_CUSTOMER', 'ROLE_TEAM_MEMBER', 'ROLE_ADMIN')")
     public Ticket insertTicket(Ticket ticket) {
+
+        String message;
+        Long chatId, produtId;
 
         String stateMachineFileName = ticket.getTarget().getStateMachineName();
 
@@ -98,6 +105,21 @@ public class TicketController {
         ticket.setVisibility(Visibility.PUBLIC);
 
         Ticket newTicket = this.ticketDao.save(ticket);
+
+        // se il ticket è stato creato inserisco una notifica per il product owner
+        if (newTicket != null){
+            message = "E' stato inserito un nuovo ticket:"
+                    + "\nProvenienza: " + newTicket.getSource()
+                    + "\nCategoria: " + newTicket.getCategory()
+                    + "\nTitolo: " + newTicket.getTitle()
+                    + "\nDescrizione: " + newTicket.getDescription()
+                    + "\nID: " + newTicket.getId();
+
+            produtId = newTicket.getTarget().getId();
+            chatId = chatController.getChatId(ChatType.PRODUCT, produtId);
+
+            chatMessageController.insertNewMessage(chatId, -1L, message, ChatMessageType.MESSAGE);
+        }
 
         defaultPermissionTable.grantDefaultPermission(ticket.getId());
         defaultPermissionTable.denyDefaultPermission(ticket.getId());
@@ -453,9 +475,11 @@ public class TicketController {
      */
     @Transactional
     public Ticket changeStatus(Long ticketID, String action) throws EntityNotFoundException {
+        TicketStatus prevStatus;
 
         Ticket ticket = getTicketById(ticketID);
         //ticket.setCreationTimestamp(Instant.now());
+        prevStatus = ticket.getCurrentTicketStatus();   // ottengo lo stato precedente
         ticket.getStateMachine().ProcessFSM(action);
         TicketStatus ticketStatus = TicketStatus.getEnum(ticket.getStateMachine().getCurrentState());
         if(ticketStatus ==null)
@@ -488,6 +512,9 @@ public class TicketController {
         ticket.setStateCounter(System.currentTimeMillis());
         FSM stateMachine = ticket.getStateMachine();
         ticket.setStateInformation(stateMachine.getStateInformation(ticketStatus.toString()));
+
+        notificateStatusChange(ticket, prevStatus, ticketStatus);
+
         return ticketDao.save(ticket);
     }
 
@@ -648,10 +675,12 @@ public class TicketController {
                                                           @NotNull String firstDay, @NotNull Integer duration,
                                                           @NotNull Long ticketId,String action, Long internalUserID) throws DependeciesFoundException, EntityNotFoundException {
         List<GanttDay> ganttDays = new ArrayList<>();
+        TicketStatus prevState;
 
         Team team = teamController.findAllTeamByPerson(username).get(0);
         Ticket ticketToUpdate = ticketDao.getOne(ticketId);
 
+        prevState = ticketToUpdate.getCurrentTicketStatus();
         GregorianCalendar first = ParseDate.parseGregorianCalendar(firstDay);
 
         //check dependencies
@@ -730,6 +759,9 @@ public class TicketController {
         ticketToUpdate.setStateInformation(stateMachine.getStateInformation(ticketStatus.toString()));
 
         ticketToUpdate.update(ticket);
+
+        notificateStatusChange(ticketToUpdate, prevState, ticketStatus);
+
         ticketDao.save(ticketToUpdate);
 
         // Si replica l'operazione sui ticket equivalenti
@@ -757,6 +789,7 @@ public class TicketController {
                 equivalent.setStateCounter(System.currentTimeMillis());
                 FSM equivalentStateMachine = equivalent.getStateMachine();
                 equivalent.setStateInformation(stateMachine.getStateInformation(ticketStatus.toString()));
+                notificateStatusChange(equivalent, equivalentTicketStatus, ticketStatus);
                 ticketDao.save(equivalent);
             }
         }
@@ -772,6 +805,51 @@ public class TicketController {
 
 
         // return ticketDao.save(ticketToUpdate);
+    }
+
+    private void notificateStatusChange(Ticket ticket, TicketStatus prevState, TicketStatus currState) throws EntityNotFoundException{
+        User parameterUser;     // utente ricavato da userId passato come parametro
+        User teamLeader;        // team leader del team del quale fa parte utente con userId
+        Long teamId;            // id del team del quale fa parte utente con userId
+        Long chatId, userId, ticketId;
+        String message;
+
+        // controllo sul cambiamento di stato
+        if(currState == TicketStatus.EXECUTION) {
+
+            userId = ticket.getAssignee().getId();
+            parameterUser = userController.findById(userId);
+            teamId = parameterUser.getTeam().getId();
+            teamLeader = teamController.getTeamLeaderByTeamId(teamId);
+
+            ticketId = ticket.getId();
+            User user = userController.findById(userId);
+
+
+
+            // creazione della chat
+            chatController.createChat(ChatType.TICKET, ticketId, ticket.getSlackable(), user.getSlackAccount());
+
+            // aggiungo il team member
+            chatMemberController.addChatMember(ChatType.TICKET, ticketId, userId);
+
+            // aggiungo il team leader
+            chatMemberController.addChatMember(ChatType.TICKET, ticketId, teamLeader.getId());
+        }
+
+
+        // Invia la notifica sulla chat
+        message = "Il seguente ticket ha cambiato stato:"
+                + "\nProvenienza: " + ticket.getSource()
+                + "\nCategoria: " + ticket.getCategory()
+                + "\nTitolo: " + ticket.getTitle()
+                + "\nDescrizione: " + ticket.getDescription()
+                + ", da " + prevState + " a " + currState
+                + "\nID: " + ticket.getId();
+
+        chatId = chatController.getChatId(ChatType.PRODUCT, ticket.getTarget().getId());
+
+        chatMessageController.insertNewMessage(chatId, -1L, message, ChatMessageType.MESSAGE);
     }
 
     /*########################################################################################################*/
