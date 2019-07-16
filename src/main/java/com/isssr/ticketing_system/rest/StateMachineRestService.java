@@ -7,12 +7,19 @@ import com.isssr.ticketing_system.utils.FileManager;
 import org.aspectj.util.FileUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.InputStreamSource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import sun.misc.IOUtils;
 
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.Base64;
 import java.util.Collection;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping(path="state_machine")
@@ -65,6 +72,34 @@ public class StateMachineRestService {
     @CrossOrigin("*")
     @RequestMapping(value = "/downloadTemplate",method = RequestMethod.GET)
     public ResponseEntity<Template> getStateMachineTemplate(){
+
+
+        String encode64xml = "";
+        try {
+            FileInputStream fis = new FileInputStream("/risorseProgetto/state_machine/templates/template_FSM.xml");
+            StringBuilder inputStringBuilder = new StringBuilder();
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(fis, "UTF-8"));
+            String line = bufferedReader.readLine();
+            while(line != null){
+                inputStringBuilder.append(line);inputStringBuilder.append('\n');
+                line = bufferedReader.readLine();
+            }
+            encode64xml = inputStringBuilder.toString();
+
+            Base64.Encoder encoder = Base64.getEncoder();
+
+            /*String encodedString*/ encode64xml = encoder.encodeToString(
+                    encode64xml.getBytes(StandardCharsets.UTF_8) );
+        } catch (IOException e) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+
+        }
+        Template tmp = new Template(encode64xml);
+        if(encode64xml!=null)
+            return new ResponseEntity<>(tmp,HttpStatus.OK);
+        return new ResponseEntity<>(tmp,HttpStatus.NOT_FOUND);
+
+        /*
         ClassPathResource stateMachineTemplate = new ClassPathResource("/state_machine/templates/template_FSM.xml");
         String encode64xml = "";
         try {
@@ -76,6 +111,7 @@ public class StateMachineRestService {
         if(encode64xml!=null)
             return new ResponseEntity<>(tmp,HttpStatus.OK);
         return new ResponseEntity<>(tmp,HttpStatus.NOT_FOUND);
+        */
     }
 
     /**

@@ -40,6 +40,46 @@ public class StateMachineController {
     @Transactional
     public String saveStateMachine(StateMachine stateMachine){
 
+        // MODIFICA FILE
+        if(stateMachine.getBase64StateMachine() == null)
+            return "MISSING XML FILE";
+
+        String savedStateMachine = stateMachine.getBase64StateMachine();
+
+        // MODIFICATO PER DOCKER
+        String relativePath = "/risorseProgetto/state_machine/xml_files/";
+
+        // Creazione del File XML della FSM:
+        FileManager.convertStringToFile(savedStateMachine, stateMachine.getName(), relativePath);
+
+        // Se la macchina a stati inserita non è valida restituisco una Stringa di errore, altrimenti null.
+        File file = new File(relativePath, stateMachine.getName());
+        String result = stateMachineValidation(file.getPath() + ".xml");
+
+        if(result!=null) {
+            Path path = Paths.get(file.getPath() + ".xml");
+            try {
+                Files.delete(path); // Cancellazione del file XML di una FSM non valida.
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return result;
+        }
+
+        try{
+            stateMachineDao.save(stateMachine); // Salvataggio della FSM nel DB.
+        }
+        catch (Exception e){
+            return "ERROR SAVING STATE MACHINE";
+        }
+
+        return null; // Il file XML della FSM è valido.
+
+
+
+
+        /*
+        // MODIFICATO PER DOCKER
         if(stateMachine.getBase64StateMachine() == null)
             return "MISSING XML FILE";
 
@@ -76,6 +116,8 @@ public class StateMachineController {
         }
 
         return null; // Il file XML della FSM è valido.
+
+         */
     }
 
     /**
@@ -227,6 +269,46 @@ public class StateMachineController {
     @SuppressWarnings("all")
     @Transactional
     public List<String> getActualStates(String stateMachineName, String role) {
+
+        // // MODIFICATO PER DOCKER
+        FSM stateMachine = null;
+        String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        File file = new File(relativePath, stateMachineName);
+        String SMPath = file.getPath() + ".xml";
+        try {
+            stateMachine = new FSM(SMPath, new FSMAction() {
+                @Override
+                public boolean action(String curState, String message, String nextState, Object args) {
+                    System.out.println(curState + ":" + message + " : " + nextState);
+                    return true;
+                }
+            });
+        } catch (ParserConfigurationException | SAXException | IOException e) {
+            e.printStackTrace();
+        }
+        List<FSMState> fsmStateList = stateMachine.getAllStates();
+        ArrayList<String> outPutList = new ArrayList<>();
+        for(FSMState fsmState:fsmStateList){
+            ArrayList<ArrayList<String>> state_info = stateMachine.getStateInformation(fsmState.getCurrentState());
+            ArrayList<String> roleList = state_info.get(1);
+            ArrayList<String> stateList = state_info.get(2);
+            for(String roleStr : roleList){
+                if(roleStr.equals(role)){
+                    int index = roleList.indexOf(roleStr);
+                    if(!outPutList.contains(stateList.get(index)))
+                        outPutList.add(stateList.get(index));
+                }
+                if(role.equals(UserRole.TEAM_LEADER.toString()) && roleStr.equals(UserRole.TEAM_MEMBER.toString())){
+                    int index = roleList.indexOf(roleStr);
+                    if(!outPutList.contains(stateList.get(index)))
+                        outPutList.add(stateList.get(index));
+                }
+            }
+        }
+        return  outPutList;
+
+        /*
+        // MODIFICATO PER DOCKER
         FSM stateMachine = null;
         ClassPathResource classPathResource = new ClassPathResource("/state_machine/xml_files/");
         String relativePath = null;
@@ -268,11 +350,43 @@ public class StateMachineController {
             }
         }
         return  outPutList;
+
+         */
     }
 
     @SuppressWarnings("all")
     @Transactional
     public ArrayList<ArrayList<String>> getNextStates(String stateMachineName, String currentState) {
+
+        // MODIFICATO PER DOCKER
+        FSM stateMachine = null;
+        String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        File file = new File(relativePath, stateMachineName);
+        String SMPath = file.getPath() + ".xml";
+        try {
+            stateMachine = new FSM(SMPath, new FSMAction() {
+                @Override
+                public boolean action(String curState, String message, String nextState, Object args) {
+                    System.out.println(curState + ":" + message + " : " + nextState);
+                    return true;
+                }
+            });
+        } catch (ParserConfigurationException | SAXException | IOException e) {
+            e.printStackTrace();
+        }
+        List<FSMState> fsmStateList = stateMachine.getAllStates();
+        ArrayList<ArrayList<String>> outPutList = new ArrayList<>();
+        for(FSMState fsmState:fsmStateList){
+            if(fsmState.getCurrentState().equals(currentState)) {
+                ArrayList<ArrayList<String>> state_info = stateMachine.getStateInformation(fsmState.getCurrentState());
+                outPutList.addAll(state_info);
+                break;
+            }
+        }
+        return  outPutList;
+
+        /*
+        // MODIFICATO PER DOCKER
         FSM stateMachine = null;
         ClassPathResource classPathResource = new ClassPathResource("/state_machine/xml_files/");
         String relativePath = null;
@@ -304,5 +418,6 @@ public class StateMachineController {
             }
         }
         return  outPutList;
+         */
     }
 }

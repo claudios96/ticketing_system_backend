@@ -75,6 +75,60 @@ public class TicketController {
     @PreAuthorize("hasAnyAuthority('ROLE_CUSTOMER', 'ROLE_TEAM_MEMBER', 'ROLE_ADMIN')")
     public Ticket insertTicket(Ticket ticket) {
 
+        // MODIFICA FILE
+
+        String message;
+        Long chatId, produtId;
+
+        String stateMachineFileName = ticket.getTarget().getStateMachineName();
+
+        //ClassPathResource classPathResource = new ClassPathResource("/state_machine/xml_files/");
+        String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        /*try {
+            relativePath = classPathResource.getFile().getPath();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }*/
+        File file = new File(relativePath, stateMachineFileName);
+        //String relativePath = "./src/main/resources/status_machine/xml_files/";
+        ticket.createStateMachine( file.getPath() + ".xml");
+
+        TicketStatus currentTicketStatus = TicketStatus.getEnum(ticket.getStateMachine().getCurrentState());
+        //if(currentTicketStatus ==null)
+        //  throw new NotFoundEntityException();
+
+        ticket.setCurrentTicketStatus(currentTicketStatus);
+        ticket.setTTL(currentTicketStatus.getTTL());
+        ticket.setStateCounter(System.currentTimeMillis());
+        FSM stateMachine = ticket.getStateMachine();
+        ticket.setStateInformation(stateMachine.getStateInformation(currentTicketStatus.toString()));
+        ticket.setAssignee(userController.getTeamCoordinator());
+        ticket.setCustomerState(false);
+        ticket.setVisibility(Visibility.PUBLIC);
+
+        Ticket newTicket = this.ticketDao.save(ticket);
+
+        // se il ticket è stato creato inserisco una notifica per il product owner
+        if (newTicket != null){
+            message = "E' stato inserito un nuovo ticket:"
+                    + "\nProvenienza: " + newTicket.getSource()
+                    + "\nCategoria: " + newTicket.getCategory()
+                    + "\nTitolo: " + newTicket.getTitle()
+                    + "\nDescrizione: " + newTicket.getDescription()
+                    + "\nID: " + newTicket.getId();
+
+            produtId = newTicket.getTarget().getId();
+            chatId = chatController.getChatId(ChatType.PRODUCT, produtId);
+
+            chatMessageController.insertNewMessage(chatId, -1L, message, ChatMessageType.MESSAGE);
+        }
+
+        defaultPermissionTable.grantDefaultPermission(ticket.getId());
+        defaultPermissionTable.denyDefaultPermission(ticket.getId());
+
+        return newTicket;
+
+        /*
         String message;
         Long chatId, produtId;
 
@@ -125,6 +179,7 @@ public class TicketController {
         defaultPermissionTable.denyDefaultPermission(ticket.getId());
 
         return newTicket;
+        */
     }
 
     @Transactional

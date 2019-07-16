@@ -38,7 +38,8 @@ import org.springframework.web.bind.annotation.*;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.Files;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -215,6 +216,26 @@ public class AuthenticationRestController {
     @RequestMapping(path = "public/perm", method = RequestMethod.GET)
     public ResponseEntity<String> sendFilejson() {
 
+        // MODIFICA FILE
+        String jsonData;
+        try {
+            FileInputStream fis = new FileInputStream("/risorseProgetto/permission.json");
+            StringBuilder inputStringBuilder = new StringBuilder();
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(fis, "UTF-8"));
+            String line = bufferedReader.readLine();
+            while(line != null){
+                inputStringBuilder.append(line);inputStringBuilder.append('\n');
+                line = bufferedReader.readLine();
+            }
+            jsonData = inputStringBuilder.toString();
+        } catch (IOException e) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        return new ResponseEntityBuilder<>(jsonData).setStatus(HttpStatus.OK).build();
+
+
+
+        /*
         ClassPathResource jsonFile = new ClassPathResource("permission.json");
 //        InputStreamResource r;
         String jsonData;
@@ -225,5 +246,7 @@ public class AuthenticationRestController {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
         return new ResponseEntityBuilder<>(jsonData).setStatus(HttpStatus.OK).build();
+
+         */
     }
 }
