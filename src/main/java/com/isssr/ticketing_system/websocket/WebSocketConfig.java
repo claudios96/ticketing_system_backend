@@ -24,7 +24,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void configureMessageBroker(MessageBrokerRegistry config) {
         config.enableSimpleBroker("/t");
         // MODIFICATO PER DOCKER
-        config.setApplicationDestinationPrefixes("http://172.20.0.50:" + serverPort + serverPath);
+        //config.setApplicationDestinationPrefixes("http://172.20.0.50:" + serverPort + serverPath);
+        config.setApplicationDestinationPrefixes("localhost:" + serverPort + serverPath);
+
     }
 
     @Override

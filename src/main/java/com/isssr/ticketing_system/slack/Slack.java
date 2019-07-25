@@ -16,12 +16,13 @@ import static org.hibernate.validator.internal.util.Contracts.assertNotNull;
 
 public class Slack {
 
-    private static final String TOKEN = "xoxp-4651591266-4651591272-657197710647-579a11474dc819b63ace1121645ed178";
+    //private static final String TOKEN = "xoxp-4651591266-4651591272-657197710647-579a11474dc819b63ace1121645ed178";
+    private static final String TOKEN = "xoxp-686271464771-697198201092-692052648561-949161345641d82c3f9c8e4e564e4ca4";
 
     // HTTP POST request
     public String createConversation(String name, String slackAccount) {
 
-        String slackUserId = "4651591266.643933560034";
+        String slackUserId = "686271464771.697680303792";//"4651591266.643933560034";
 
         if(slackAccount != null){
             slackUserId = slackAccount;
@@ -53,7 +54,7 @@ public class Slack {
     public String sendMessage(String slackChannelId, String message, String username) {
 
         try {
-            String url = "https://slack.com/api/chat.postMessage?token=" + TOKEN + "&channel=" + slackChannelId + "&text=" + encodeValue(message) + "&as_user=false&username=" + username;
+            String url = "https://slack.com/api/chat.postMessage?token=" + TOKEN + "&channel=" + slackChannelId + "&text=" + encodeValue(message) + "&as_user=false&username=" + username.replaceAll(" ", "_");
             return doRequest(url);
 
         } catch (JsonParseException e) {

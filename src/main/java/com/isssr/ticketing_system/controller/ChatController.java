@@ -114,8 +114,8 @@ public class ChatController {
     public void uploadFile(Long chatId, String filename, String data) {
 
         // MODIFICATO PER DOCKER
-        //String path = "src/main/resources/uploadedFiles";
-        String path = "risorseProgetto/uploadedFiles";
+        String path = "src/main/resources/uploadedFiles";
+        //String path = "risorseProgetto/uploadedFiles";
 
         // controllo l'esistenza della directory uploadedFiles
         if (Files.notExists(Paths.get(path))) {
@@ -162,8 +162,8 @@ public class ChatController {
     public String getFile(Long chatId, String filename) {
 
         // MODIFICATO PER DOCKER
-        //String path = "src/main/resources/uploadedFiles";
-        String path = "risorseProgetto/uploadedFiles";
+        String path = "src/main/resources/uploadedFiles";
+        //String path = "risorseProgetto/uploadedFiles";
 
         path = path.concat("/");
         path = path.concat(chatId.toString());

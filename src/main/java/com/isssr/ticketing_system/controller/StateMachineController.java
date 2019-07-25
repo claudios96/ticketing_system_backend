@@ -47,7 +47,8 @@ public class StateMachineController {
         String savedStateMachine = stateMachine.getBase64StateMachine();
 
         // MODIFICATO PER DOCKER
-        String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        //String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        String relativePath = "/state_machine/xml_files/";
 
         // Creazione del File XML della FSM:
         FileManager.convertStringToFile(savedStateMachine, stateMachine.getName(), relativePath);
@@ -272,7 +273,8 @@ public class StateMachineController {
 
         // // MODIFICATO PER DOCKER
         FSM stateMachine = null;
-        String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        //String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        String relativePath = "/state_machine/xml_files/";
         File file = new File(relativePath, stateMachineName);
         String SMPath = file.getPath() + ".xml";
         try {
@@ -360,7 +362,8 @@ public class StateMachineController {
 
         // MODIFICATO PER DOCKER
         FSM stateMachine = null;
-        String relativePath = "/risorseProgetto/state_machine/xml_files/";
+        String relativePath = "/state_machine/xml_files/";
+        //String relativePath = "/risorseProgetto/state_machine/xml_files/";
         File file = new File(relativePath, stateMachineName);
         String SMPath = file.getPath() + ".xml";
         try {
